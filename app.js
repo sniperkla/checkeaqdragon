@@ -149,6 +149,10 @@ mongoose
 // app.post('/license_api', apiKeyAuth, async (req, res) => {
 app.post('/license_api', async (req, res) => {
   try {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress
+
+    console.log('User IP:', ip) // This will show the Real IP (e.g., 1.2.3.4)
+
     const body = req.body
     // 1. Body must be an object
     if (!body || typeof body !== 'object') {
