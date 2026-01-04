@@ -1,15 +1,10 @@
 // Simple API key authentication middleware
-// const API_KEY = process.env.API_KEY || 'your-secret-api-key';
-// function apiKeyAuth(req, res, next) {
-//   const key = req.headers['x-api-key'];
-//   if (!key || key !== API_KEY) {
-//     return res.status(HTTPStatus.UNAUTHORIZED).json({ error: 'Unauthorized' });
-//   }
-//   next();
-// }
 const express = require('express')
 const HTTPStatus = require('http-status')
 const cron = require('node-cron')
+const helmet = require('helmet')
+const rateLimit = require('express-rate-limit')
+const mongoSanitize = require('express-mongo-sanitize')
 const app = express()
 require('dotenv').config()
 
@@ -18,6 +13,19 @@ const cors = require('cors')
 const bodyParser = require('body-parser')
 const mongoose = require('mongoose')
 const licen = require('./model/licen')
+
+// Security Middleware
+app.use(helmet()) // Set security HTTP headers
+app.use(mongoSanitize()) // Data sanitization against NoSQL query injection
+
+// Rate Limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later'
+})
+app.use(limiter)
+
 app.use(cors())
 app.use(bodyParser.json())
 app.use(bodyParser.urlencoded({ extended: false }))
@@ -146,9 +154,42 @@ mongoose
 // app.post('/license_api', apiKeyAuth, async (req, res) => {
 app.post('/license_api', async (req, res) => {
   try {
+    const body = req.body
+    // 1. Body must be an object
+    if (!body || typeof body !== 'object') {
+      return res.status(400).json({ error: 'Invalid request body' })
+    }
+
+    // 2. Reject ANY extra fields
+    const allowedKeys = ['account', 'licenes', 'botversion']
+    for (const key of Object.keys(body)) {
+      if (!allowedKeys.includes(key)) {
+        return res.status(400).json({ error: 'Extra fields not allowed' })
+      }
+    }
+    // 3. Check required fields exist
+    if (!body.account || !body.licenes) {
+      return res.status(400).json({ error: 'Missing required fields' })
+    }
+
+    // 4. Length limits
+    if (body.account.length > 20)
+      return res.status(400).json({ error: 'Account too long' })
+    if (body.licenes.length > 50)
+      return res.status(400).json({ error: 'License too long' })
+
+    // 5. Pattern validation
+    // Accept numbers or DEMO
+    if (!/^(DEMO|[0-9]+)$/.test(body.account)) {
+      return res.status(400).json({ error: 'Invalid account format' })
+    }
+
+    if (!/^[A-Z0-9\-]+$/.test(body.licenes)) {
+      return res.status(400).json({ error: 'Invalid license format' })
+    }
+
     const { account, licenes } = req.body
 
-    // DEMO account first
     const demoDoc = await licen.findOne({
       accountNumber: 'DEMO',
       license: licenes
@@ -242,8 +283,8 @@ async function checkAllLicensesLogic() {
   return { processedCount, updates }
 }
 
-// Schedule task to run every day at midnight (00:00)
-cron.schedule('0 0 * * *', async () => {
+// Schedule task to run every 30 minutes
+cron.schedule('*/30 * * * *', async () => {
   try {
     await checkAllLicensesLogic()
   } catch (error) {
@@ -268,6 +309,14 @@ app.get('/check_all_licenses', async (req, res) => {
       .status(HTTPStatus.INTERNAL_SERVER_ERROR)
       .json({ error: error.message })
   }
+})
+
+// Error handling middleware for JSON parsing errors
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({ error: 'Invalid JSON in request body' })
+  }
+  next(err)
 })
 
 app.listen(port, () => {
