@@ -6,6 +6,10 @@ const helmet = require('helmet')
 const rateLimit = require('express-rate-limit')
 const mongoSanitize = require('express-mongo-sanitize')
 const app = express()
+
+// Trust the first proxy (Nginx) to fix rate-limit IP detection
+app.set('trust proxy', 1)
+
 require('dotenv').config()
 
 const port = 5800
