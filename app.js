@@ -3,7 +3,6 @@ const express = require('express')
 const HTTPStatus = require('http-status')
 const cron = require('node-cron')
 const helmet = require('helmet')
-const rateLimit = require('express-rate-limit')
 const mongoSanitize = require('express-mongo-sanitize')
 const app = express()
 
@@ -21,14 +20,6 @@ const licen = require('./model/licen')
 // Security Middleware
 app.use(helmet()) // Set security HTTP headers
 app.use(mongoSanitize()) // Data sanitization against NoSQL query injection
-
-// Rate Limiting
-const limiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later'
-})
-app.use(limiter)
 
 app.use(cors())
 app.use(bodyParser.json())
