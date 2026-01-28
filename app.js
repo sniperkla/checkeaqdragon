@@ -151,7 +151,8 @@ app.post('/license_api', async (req, res) => {
   try {
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress
 
-    console.log('User IP:', ip) // This will show the Real IP (e.g., 1.2.3.4)
+    console.log('User IP:', ip) 
+     // This will show the Real IP (e.g., 1.2.3.4)
 
     const body = req.body
     // 1. Body must be an object
@@ -160,7 +161,7 @@ app.post('/license_api', async (req, res) => {
     }
 
     // 2. Reject ANY extra fields
-    const allowedKeys = ['account', 'licenes', 'botversion']
+    const allowedKeys = ['account', 'licenes', 'version']
     for (const key of Object.keys(body)) {
       if (!allowedKeys.includes(key)) {
         return res.status(400).json({ error: 'Extra fields not allowed' })
@@ -187,8 +188,9 @@ app.post('/license_api', async (req, res) => {
       return res.status(400).json({ error: 'Invalid license format' })
     }
 
-    const { account, licenes } = req.body
+    const { account, licenes , version } = req.body
 
+    console.log("data",req.body)
     const demoDoc = await licen.findOne({
       accountNumber: 'DEMO',
       license: licenes
@@ -207,11 +209,30 @@ app.post('/license_api', async (req, res) => {
       return res.status(HTTPStatus.OK).json(demoResult)
     }
 
+    let userDoc = null
+   //
+   
+
+
+    // ที่ส่งมา บ่งบอกว่าคือ lot version นะ
     // Normal account
-    const userDoc = await licen.findOne({
+
+    if (version) {
+      const check = await licen?.findOne({
       accountNumber: account,
-      license: licenes
-    })
+      license: licenes    })
+      if (check?.backendKey === version){
+        userDoc = check
+      }
+  }
+    else
+      // assume q-dragon lagacy
+       {
+      const checkLagacy = await licen?.findOne({
+      accountNumber: account,
+      license: licenes})
+      userDoc = checkLagacy
+      }
     if (!userDoc) {
       // Fallback: account not found but license exists -> treat as demo usage
       const licenseOnlyDoc = await licen.findOne({ license: licenes })

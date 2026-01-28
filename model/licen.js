@@ -8,6 +8,7 @@ const account = new Schema(
     expireDate: { type: String },
     status: { type: String, default: 'valid' },
     lastNearlyExpiredNotifiedAt: { type: String },
+    backendKey: { type: String },
     notified: { type: String }
   },
   {
